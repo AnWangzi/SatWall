@@ -1,0 +1,8 @@
+{
+  "root": "C:\\Users\\YOURNAME\\Pictures\\SatWall",
+  "monitorIndex": 1,
+  "latitude": 32.0,
+  "intervalMinutes": 30,
+  "trueColorGrid": 8,
+  "infraredZoom": 2
+}

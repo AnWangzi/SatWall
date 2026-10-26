@@ -1,0 +1,11 @@
+# generated output / local state
+wallpaper.jpg
+wallpaper_ir.jpg
+status.json
+config.json
+work*/
+irwork*/
+
+# dev leftovers
+_dev/
+*.html
