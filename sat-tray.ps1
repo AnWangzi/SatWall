@@ -66,19 +66,31 @@ $miExit = $menu.Items.Add('退出托盘')
 $ni.ContextMenuStrip = $menu
 
 function Start-Refresh([string]$flag) {
-  if ($script:proc -and -not $script:proc.HasExited) { return }
-  $a = @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $script:Root 'sat-auto.ps1'))
-  if ($flag) { $a += $flag }
-  $script:proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $a -WindowStyle Hidden -PassThru
+  if ($script:refreshAt -and ((Get-Date) - $script:refreshAt).TotalSeconds -lt 150) { return }
+  $vbs = Join-Path $script:Root 'run-hidden.vbs'
+  if (Test-Path $vbs) {
+    $a = @(('"' + $vbs + '"'))
+    if ($flag) { $a += $flag }
+    Start-Process -FilePath "$env:SystemRoot\System32\wscript.exe" -ArgumentList $a -WindowStyle Hidden | Out-Null
+  } else {
+    $a = @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $script:Root 'sat-auto.ps1'))
+    if ($flag) { $a += $flag }
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $a -WindowStyle Hidden | Out-Null
+  }
+  $script:refreshAt = Get-Date
   $ni.Text = '卫星云图 · 正在刷新…'
 }
 
 function Update-Display {
   $st = Get-Status
   if (-not $st) { $ni.Text = '卫星云图 · 尚未抓取'; return }
+  $statusPath = Join-Path $script:Root 'status.json'
+  if ($script:refreshAt -and (Test-Path $statusPath)) {
+    if ((Get-Item $statusPath).LastWriteTime -gt $script:refreshAt) { $script:refreshAt = $null }
+  }
   $m = '红外'; if ($st.mode -eq 'truecolor') { $m = '可见光' }
   $txt = "卫星云图 · $m · $($st.time)"
-  if ($script:proc -and -not $script:proc.HasExited) { $txt = '卫星云图 · 正在刷新…' }
+  if ($script:refreshAt -and ((Get-Date) - $script:refreshAt).TotalSeconds -lt 150) { $txt = '卫星云图 · 正在刷新…' }
   if ($txt.Length -gt 62) { $txt = $txt.Substring(0, 62) }
   $ni.Text = $txt
   $miStatus.Text = "当前：$m   更新于 $($st.time)"

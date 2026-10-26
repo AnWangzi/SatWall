@@ -20,7 +20,7 @@ Write-Output ("source : " + $src)
 Write-Output ("target : " + $Dest)
 
 # ---- 1) 复制文件 ----
-$files = @('sat-auto.ps1','sat-ir.ps1','sat-tray.ps1','set-wall.ps1','set-wp.ps1','README.md')
+$files = @('sat-auto.ps1','sat-ir.ps1','sat-tray.ps1','set-wall.ps1','set-wp.ps1','run-hidden.vbs','run-tray.vbs','README.md')
 if ($Dest -ne $src) {
   foreach ($f in $files) {
     $p = Join-Path $src $f
@@ -29,6 +29,18 @@ if ($Dest -ne $src) {
   }
 } else {
   Write-Output 'in-place install'
+}
+
+# VBS launchers hardcode the source path - rewrite them to the target
+foreach ($v in @('run-hidden.vbs','run-tray.vbs')) {
+  $vp = Join-Path $Dest $v
+  if (Test-Path $vp) {
+    $c = Get-Content $vp -Raw
+    $c = $c.Replace('C:\Users\Admin\Pictures\SatWall', $Dest)
+    if ($Dest -ne $src) { $c = $c.Replace($src, $Dest) }
+    Set-Content -Path $vp -Value $c -Encoding ASCII
+    Write-Output ("rewrote " + $v)
+  }
 }
 
 # ---- 2) 列出显示器 ----
@@ -116,10 +128,11 @@ Write-Output ("config -> " + $cfgPath)
 if (-not $NoTasks) {
 $taskName = 'SatWallpaper'
 $ps = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-$arg = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $Dest 'sat-auto.ps1') + '" -MonitorIndex ' + $MonitorIndex + ' -Latitude ' + $Latitude
+$wscript = "$env:SystemRoot\System32\wscript.exe"
+$vbsAuto = Join-Path $Dest 'run-hidden.vbs'
 $old = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 if ($old) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false }
-$act = New-ScheduledTaskAction -Execute $ps -Argument $arg
+$act = New-ScheduledTaskAction -Execute $wscript -Argument ('"' + $vbsAuto + '"')
 $trg = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes)
 $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 20)
 Register-ScheduledTask -TaskName $taskName -Action $act -Trigger $trg -Settings $set -Description 'Satellite wallpaper auto refresh' -Force | Out-Null
@@ -130,8 +143,8 @@ $startup = [Environment]::GetFolderPath('Startup')
 $lnk = Join-Path $startup 'SatelliteWallpaper.lnk'
 $ws = New-Object -ComObject WScript.Shell
 $sc = $ws.CreateShortcut($lnk)
-$sc.TargetPath = $ps
-$sc.Arguments = '-STA -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $Dest 'sat-tray.ps1') + '"'
+$sc.TargetPath = $wscript
+$sc.Arguments = '"' + (Join-Path $Dest 'run-tray.vbs') + '"'
 $sc.WindowStyle = 7
 $sc.WorkingDirectory = $Dest
 $sc.Description = 'Satellite wallpaper tray'
